@@ -10,6 +10,7 @@ from app.db import get_db
 from app.models import User
 from app.schemas import Token, UserCreate, UserOut
 from app.security import create_access_token, verify_password, get_password_hash
+from app.metrics import set_users_total
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
@@ -48,6 +49,9 @@ async def register(user_in: UserCreate, db: AsyncSession = Depends(get_db)):
     user = User(username=user_in.username, password_hash=password_hash)
     db.add(user)
     await db.commit()
+    # update users_total gauge best-effort
+    result = await db.execute(select(User))
+    set_users_total(len(result.scalars().all()))
     await db.refresh(user)
     return user
 

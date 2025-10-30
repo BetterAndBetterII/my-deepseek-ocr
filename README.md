@@ -45,6 +45,7 @@ Endpoints
 - `GET /users/me/usage/summary` — usage aggregates
 - `POST /ocr/image` — upload image file (png/jpeg/webp), streams text
 - `POST /ocr/pdf` — upload PDF, streams text; converts pages via `pypdfium2` when available, otherwise attempts direct PDF data URL
+- `GET /metrics` — Prometheus metrics endpoint
 
 Streaming
 ---------
@@ -65,3 +66,18 @@ Notes
 
 - Token usage may not be available from all backends during streaming; the app records character counts and input bytes by default.
 - PDF support requires `pypdfium2`; if missing, the app attempts to send the PDF as a base64 data URL which may or may not be supported by your OCR server.
+- Exposes Prometheus metrics: concurrency, OCR in-progress, request counters, latency histograms, token counts (approx via chars/4), user count, image/pdf counters.
+
+Prometheus Metrics
+------------------
+
+- `http_in_flight_requests` (gauge): current in-flight HTTP requests
+- `http_requests_total{method, path, status}` (counter): total HTTP requests
+- `http_request_duration_seconds{method, path}` (histogram): request duration (includes streaming)
+- `ocr_in_progress{kind}` (gauge): current OCR operations in progress (`image`/`pdf`)
+- `ocr_requests_total{kind}` (counter): total OCR requests by kind
+- `image_requests_total`, `pdf_requests_total` (counter): total image/PDF OCR requests
+- `ocr_processing_seconds{kind}` (histogram): total OCR processing time (per request)
+- `ocr_input_bytes_total{kind}` (counter): total input bytes by kind
+- `users_total` (gauge): registered users
+- `prompt_tokens_total`, `completion_tokens_total`, `tokens_total` (counter): token counts (approx chars/4)

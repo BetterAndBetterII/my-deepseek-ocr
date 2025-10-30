@@ -12,6 +12,7 @@ from app.db import get_db
 from app.models import UsageEvent, User
 from app.ocr_client import get_client
 from app.routers.auth import get_current_user
+from app.metrics import approx_tokens_from_chars, ocr_metrics_span
 
 
 router = APIRouter(prefix="/ocr", tags=["ocr"])
@@ -90,19 +91,32 @@ async def ocr_image(
     prompt_chars = len(prompt_text)
     completion_chars_acc = 0
 
+    span = ocr_metrics_span("image")
+
     async def generator():
         nonlocal completion_chars_acc
-        async for piece in _stream_openai_chat(messages, extra_body=extra_body):
-            completion_chars_acc += len(piece)
-            yield piece
-        await _record_usage(
-            db,
-            current_user,
-            kind="image",
-            prompt_chars=prompt_chars,
-            completion_chars=completion_chars_acc,
-            input_bytes=len(content),
-        )
+        try:
+            async for piece in _stream_openai_chat(messages, extra_body=extra_body):
+                completion_chars_acc += len(piece)
+                yield piece
+        finally:
+            prompt_tokens = approx_tokens_from_chars(prompt_chars)
+            completion_tokens = approx_tokens_from_chars(completion_chars_acc)
+            await _record_usage(
+                db,
+                current_user,
+                kind="image",
+                prompt_chars=prompt_chars,
+                completion_chars=completion_chars_acc,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                input_bytes=len(content),
+            )
+            span.finish(
+                input_bytes=len(content),
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+            )
 
     return StreamingResponse(generator(), media_type="text/plain; charset=utf-8")
 
@@ -161,20 +175,33 @@ async def ocr_pdf(
         prompt_chars = len(prompt_text)
         completion_chars_acc = 0
 
+        span = ocr_metrics_span("pdf")
+
         async def gen_single_pdf():
             nonlocal completion_chars_acc
-            async for piece in _stream_openai_chat(messages, extra_body=extra_body):
-                completion_chars_acc += len(piece)
-                yield piece
-            await _record_usage(
-                db,
-                current_user,
-                kind="pdf",
-                prompt_chars=prompt_chars,
-                completion_chars=completion_chars_acc,
-                input_bytes=len(content),
-                meta="direct_pdf_data_url",
-            )
+            try:
+                async for piece in _stream_openai_chat(messages, extra_body=extra_body):
+                    completion_chars_acc += len(piece)
+                    yield piece
+            finally:
+                prompt_tokens = approx_tokens_from_chars(prompt_chars)
+                completion_tokens = approx_tokens_from_chars(completion_chars_acc)
+                await _record_usage(
+                    db,
+                    current_user,
+                    kind="pdf",
+                    prompt_chars=prompt_chars,
+                    completion_chars=completion_chars_acc,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    input_bytes=len(content),
+                    meta="direct_pdf_data_url",
+                )
+                span.finish(
+                    input_bytes=len(content),
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                )
 
         return StreamingResponse(gen_single_pdf(), media_type="text/plain; charset=utf-8")
 
@@ -183,6 +210,8 @@ async def ocr_pdf(
         "vllm_xargs": {"ngram_size": 30, "window_size": 90},
         "skip_special_tokens": False,
     }
+
+    span = ocr_metrics_span("pdf")
 
     async def generator_pages():
         total_completion = 0
@@ -203,14 +232,24 @@ async def ocr_pdf(
             async for piece in _stream_openai_chat(messages, extra_body=extra_body):
                 total_completion += len(piece)
                 yield piece
+        prompt_chars_total = len(prompt_base) * max(1, len(images))
+        prompt_tokens = approx_tokens_from_chars(prompt_chars_total)
+        completion_tokens = approx_tokens_from_chars(total_completion)
         await _record_usage(
             db,
             current_user,
             kind="pdf",
-            prompt_chars=len(prompt_base) * max(1, len(images)),
+            prompt_chars=prompt_chars_total,
             completion_chars=total_completion,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
             input_bytes=len(content),
             meta=f"pages={len(images)}",
+        )
+        span.finish(
+            input_bytes=len(content),
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
         )
 
     return StreamingResponse(generator_pages(), media_type="text/plain; charset=utf-8")

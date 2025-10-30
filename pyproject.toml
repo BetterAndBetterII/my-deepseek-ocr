@@ -15,4 +15,5 @@ dependencies = [
     "pypdfium2>=4.30.0",
     "aiosqlite>=0.20.0",
     "jose>=1.0.0",
+    "prometheus-client>=0.20.0",
 ]
