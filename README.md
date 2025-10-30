@@ -104,12 +104,15 @@ Browser ──> Nginx (serves SPA + proxies /api) ──> FastAPI (app/main.py)
   - `cd frontend && docker build -t my-ocr-web:latest .`
   - Nginx serves `dist/`; `/api/` is proxied to `BACKEND_URL` at runtime via `frontend/docker-entrypoint.sh:1` and `frontend/nginx.conf.template:1`.
 
-**Docker Compose (example)**
+**Docker Compose**
 - `docker compose up -d --build`
 - Services:
-  - `api` — FastAPI at a chosen port (ensure container listens on 8000; map host port accordingly)
-  - `web` — Nginx at `http://localhost:3000`, set env `BACKEND_URL` so `/api` proxies correctly, e.g. `http://api:8000`
-- Note: The provided compose file is a template; verify port mappings and `BACKEND_URL` line up with your API port.
+  - `api`: FastAPI backend at `http://localhost:9000` (Prometheus `/metrics` exposed). DB persisted to volume `db-data` at `/app/_data`.
+  - `web`: Frontend at `http://localhost:3000`. Build args `VITE_API_BASE_URL`/`NEXT_PUBLIC_API_BASE_URL` target `http://api:9000`.
+  - `prometheus`: `http://localhost:9090`, scrapes `api:9000/metrics` every 5s (see `monitoring/prometheus.yml`).
+  - `grafana`: `http://localhost:3001` (default admin/admin; override via env `GRAFANA_ADMIN_USER`/`GRAFANA_ADMIN_PASSWORD`). Pre-provisioned Prometheus datasource.
+- Optional OCR engine:
+  - `docker-compose.yml` contains a commented `engine` service. If you run your OCR engine in compose, enable it and keep `LLM_BASE_URL=http://engine:8000/v1`.
 
 **Migrations (Alembic)**
 - Autogenerate: `alembic revision --autogenerate -m "msg"`
