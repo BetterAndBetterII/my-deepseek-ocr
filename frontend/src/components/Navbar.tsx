@@ -19,7 +19,7 @@ export function Navbar() {
         <div className="flex items-center gap-2">
           <div className="hidden md:flex items-center gap-1 text-xs text-muted-foreground" title="本应用不存储用户信息">
             <Info className="h-3 w-3" />
-            <span>不存储用户信息</span>
+            <span>本应用不存储用户信息</span>
           </div>
           <Button variant="ghost" size="icon" aria-label="Toggle theme" onClick={() => setDark(v => !v)}>
             {dark ? <Sun className="h-4 w-4"/> : <Moon className="h-4 w-4"/>}

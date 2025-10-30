@@ -8,10 +8,14 @@ import { formatBytes, formatNumber, formatRelativeZH } from "@/lib/utils";
 import { StreamViewer } from "@/components/StreamViewer";
 import { PdfStreamViewer } from "@/components/PdfStreamViewer";
 import { PreviewPane } from "@/components/PreviewPane";
+import { DropArea } from "@/components/DropArea";
 import { MetricsPills } from "@/components/MetricsPills";
 import { CompactHistory } from "@/components/CompactHistory";
 import { Fab } from "@/components/Fab";
 import { History, BarChart3 } from "lucide-react";
+import { PRESETS, getPresetByKey } from "@/lib/presets";
+import { usePresetStore } from "@/lib/presetStore";
+import { Input } from "@/components/ui/input";
 
 export default function Dashboard() {
   const { token, authDisabled } = useAuth();
@@ -24,6 +28,14 @@ export default function Dashboard() {
   const [summary, setSummary] = useState<UsageSum | null>(null);
   const [history, setHistory] = useState<UsageEvent[]>([]);
   const [insightsOpen, setInsightsOpen] = useState(false);
+  // preset prompts (global store)
+  const presetKey = usePresetStore(s => s.presetKey);
+  const setPresetKey = usePresetStore(s => s.setPresetKey);
+  const customPrompt = usePresetStore(s => s.customPrompt);
+  const setCustomPrompt = usePresetStore(s => s.setCustomPrompt);
+  const currentPreset = getPresetByKey(presetKey as any);
+  const promptValue = presetKey === 'custom' ? (customPrompt || '') : currentPreset.value;
+  const promptLabel = presetKey === 'custom' ? '自定义' : currentPreset.label;
 
   const refreshUsage = useCallback(async () => {
     if (!token && !authDisabled) return;
@@ -111,7 +123,8 @@ export default function Dashboard() {
             }
             if (progressed) updatePages();
           },
-          ctrl.signal
+          ctrl.signal,
+          promptValue
         );
         // parse any remaining buffered line at end
         const tail = jsonBuf.trim();
@@ -170,7 +183,8 @@ export default function Dashboard() {
               }
             }
           },
-          ctrl.signal
+          ctrl.signal,
+          promptValue
         );
         const tail = jsonBuf.trim();
         if (tail) {
@@ -190,7 +204,7 @@ export default function Dashboard() {
       // update usage
       refreshUsage();
     }
-  }, [token, authDisabled, refreshUsage]);
+  }, [token, authDisabled, refreshUsage, promptValue]);
 
   // Revoke old object URLs when preview changes or on unmount
   const prevUrlRef = useRef<string | null>(null);
@@ -255,10 +269,51 @@ export default function Dashboard() {
       <div className="grid gap-4">
         {!preview && (
           <Card>
-            <CardHeader className="flex items-center justify-between flex-row">
-              <CardTitle>上传</CardTitle>
-              <div className="flex gap-2">
-                {streaming && <Button variant="destructive" size="sm" onClick={stop}>停止</Button>}
+            <CardHeader className="flex flex-col gap-2">
+              <div className="flex items-center justify-between w-full">
+                <CardTitle>上传</CardTitle>
+                <div className="flex gap-2">
+                  {streaming && <Button variant="destructive" size="sm" onClick={stop}>停止</Button>}
+                </div>
+              </div>
+              {/* preset prompts + custom prompt to the right */}
+              <div className="flex w-full flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {PRESETS.map(({ key, label, Icon }) => (
+                    <Button
+                      key={key}
+                      size="sm"
+                      variant={presetKey === key ? 'secondary' : 'ghost'}
+                      onClick={() => setPresetKey(key)}
+                    >
+                      <Icon className="h-4 w-4 mr-2" />{label}
+                    </Button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2 ml-auto">
+                  <Input
+                    className="w-[220px] md:w-[360px]"
+                    placeholder="自定义 Prompt"
+                    value={customPrompt}
+                    onChange={(e) => setCustomPrompt(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && customPrompt.trim()) {
+                        setPresetKey('custom');
+                      }
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    className={presetKey === 'custom'
+                      ? 'bg-emerald-600 text-white hover:bg-emerald-600/90'
+                      : 'bg-white text-foreground border hover:bg-white/90'}
+                    onClick={() => {
+                      if (customPrompt.trim()) setPresetKey('custom');
+                    }}
+                  >
+                    使用
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -270,7 +325,7 @@ export default function Dashboard() {
         {(preview || result || pages.length > 0) && (
           <Card className="min-h-[360px] h-[80vh] flex flex-col">
             <CardHeader className="flex items-center justify-between flex-row">
-              <CardTitle>识别结果</CardTitle>
+              <CardTitle>识别结果 · {promptLabel}</CardTitle>
               <div className="flex gap-2">
                 {streaming && <Button variant="destructive" size="sm" onClick={stop}>停止</Button>}
                 <Button variant="secondary" size="sm" onClick={() => {
@@ -285,10 +340,12 @@ export default function Dashboard() {
                 <div className="flex items-center justify-between border-b px-3 py-2 text-sm text-muted-foreground">预览</div>
                 <div className="flex-1 min-h-0">
                   {preview ? (
-                  <PreviewPane url={preview.url} kind={preview.kind} />
-                ) : (
-                  <div className="h-full flex items-center justify-center text-sm text-muted-foreground">等待上传以预览</div>
-                )}
+                    <DropArea onFiles={onFiles}>
+                      <PreviewPane url={preview.url} kind={preview.kind} />
+                    </DropArea>
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-sm text-muted-foreground">等待上传以预览</div>
+                  )}
                 </div>
               </div>
               <div className="border rounded-md overflow-hidden flex flex-col min-h-0">

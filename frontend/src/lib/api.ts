@@ -92,10 +92,14 @@ export function uploadAndStream(
   kind: OCRKind,
   onChunk: (text: string) => void,
   signal?: AbortSignal,
+  prompt?: string,
 ) {
   const endpoint = kind === "pdf" ? "pdf" : "image";
   const form = new FormData();
   form.append("file", file);
+  if (prompt && prompt.trim()) {
+    form.append("prompt", prompt);
+  }
   return fetch(`${API_BASE}/ocr/${endpoint}`, {
     method: "POST",
     headers: authHeaders(token),
