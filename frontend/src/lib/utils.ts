@@ -1,11 +1,13 @@
-import { type ClassValue, clsx } from "clsx"
-import { twMerge } from "tailwind-merge"
+import { type ClassValue, clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
 
 export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
+  return twMerge(clsx(inputs));
 }
 
-export const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
+// In production builds, always use relative "/api" and let Nginx proxy.
+// During development, allow overriding via VITE_API_BASE_URL.
+export const API_BASE = import.meta.env.PROD ? "/api" : import.meta.env.VITE_API_BASE_URL || "/api";
 
 export function formatNumber(n: number | null | undefined) {
   if (n == null || isNaN(Number(n))) return "0";
@@ -25,7 +27,7 @@ export function formatBytes(bytes: number | null | undefined) {
 
 function parseDateAssumeUTC(input: string | number | Date): Date {
   if (input instanceof Date) return input;
-  if (typeof input === 'number') return new Date(input);
+  if (typeof input === "number") return new Date(input);
   const s = String(input);
   // If string already has timezone (Z or ±HH:MM) then use native parse
   if (/T.*(?:Z|[+-]\d{2}:?\d{2})$/i.test(s)) return new Date(s);
@@ -39,7 +41,7 @@ function parseDateAssumeUTC(input: string | number | Date): Date {
     const hour = Number(H);
     const minute = Number(Mi);
     const sec = Number(S);
-    const ms = frac ? Number((frac + '000').slice(0, 3)) : 0; // keep milliseconds
+    const ms = frac ? Number((frac + "000").slice(0, 3)) : 0; // keep milliseconds
     return new Date(Date.UTC(year, month, day, hour, minute, sec, ms));
   }
   // Fallback

@@ -47,7 +47,7 @@ export async function login(username: string, password: string): Promise<TokenIn
     // Try to surface backend detail, otherwise generic
     try {
       const data = await res.json();
-      const detail = typeof data?.detail === 'string' ? data.detail : undefined;
+      const detail = typeof data?.detail === "string" ? data.detail : undefined;
       throw new Error(detail || `登录失败: ${res.status}`);
     } catch {
       throw new Error(`登录失败: ${res.status}`);

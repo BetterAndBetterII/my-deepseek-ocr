@@ -1,12 +1,13 @@
 # My OCR Frontend
 
 React + Vite + Tailwind + shadcn UI. Supports:
+
 - OAuth2 username/password login against FastAPI (`/auth/token`)
 - Register (`/auth/register`)
 - Paste, click, or drag-and-drop upload for images and PDFs
 - Streaming OCR result display (plain text streaming)
 - User info + usage summary/history
- - Auto-skip login when backend disables auth (`AUTH_ENABLED=false`)
+- Auto-skip login when backend disables auth (`AUTH_ENABLED=false`)
 
 ## Dev Setup
 
@@ -28,6 +29,7 @@ pnpm preview
 ```
 
 ## Notes
+
 - Uses localStorage to store access token.
 - If backend sets `AUTH_ENABLED=false`, frontend detects it by calling `/users/me` without a token and skips the login flow.
 - Backend endpoints used:

@@ -59,7 +59,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!canceled) setReady(true);
       }
     })();
-    return () => { canceled = true };
+    return () => {
+      canceled = true;
+    };
   }, [token, refreshMe]);
 
   const doLogin = useCallback(async (username: string, password: string) => {
@@ -77,7 +79,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(null);
   }, []);
 
-  const value = useMemo(() => ({ user, token, loading, login: doLogin, logout, authDisabled, ready }), [user, token, loading, doLogin, logout, authDisabled, ready]);
+  const value = useMemo(
+    () => ({ user, token, loading, login: doLogin, logout, authDisabled, ready }),
+    [user, token, loading, doLogin, logout, authDisabled, ready],
+  );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

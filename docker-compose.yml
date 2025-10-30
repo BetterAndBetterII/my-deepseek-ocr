@@ -1,0 +1,55 @@
+version: "3.9"
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: my-ocr-api
+    env_file:
+      - .env
+    environment:
+      # Persist DB under a mounted dir
+      DATABASE_URL: ${DATABASE_URL:-sqlite+aiosqlite:///./_data/data.db}
+      # Point backend to OCR engine reachable in compose (adjust if you run engine elsewhere)
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://engine:8000/v1}
+    ports:
+      - "9000:9000"
+    volumes:
+      - db-data:/app/_data
+    depends_on: []
+
+  # Frontend: expects a Dockerfile under ./frontend to build the web app
+  # Typical pattern (Vite): Node builder -> Nginx runner serving built assets
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Common patterns, adjust to your frontend framework
+        VITE_API_BASE_URL: http://api:9000
+        NEXT_PUBLIC_API_BASE_URL: http://api:9000
+    container_name: my-ocr-web
+    environment:
+      # Runtime env (if your frontend reads env at runtime via window.env or similar)
+      VITE_API_BASE_URL: http://api:9000
+      NEXT_PUBLIC_API_BASE_URL: http://api:9000
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+
+  # Optional OCR engine (OpenAI-compatible) if you want to run it inside compose
+  # Replace image/command/env according to your engine setup; otherwise, point
+  # LLM_BASE_URL in the api service to an external endpoint.
+  # engine:
+  #   image: your-ocr-engine:latest
+  #   container_name: my-ocr-engine
+  #   ports:
+  #     - "8000:8000"
+  #   environment:
+  #     - SOME_ENGINE_ENV=...
+
+volumes:
+  db-data:
+

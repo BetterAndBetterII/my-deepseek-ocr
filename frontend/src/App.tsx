@@ -18,7 +18,14 @@ export default function App() {
       <Navbar />
       <div className="flex-1">
         <Routes>
-          <Route path="/" element={<Private><Dashboard /></Private>} />
+          <Route
+            path="/"
+            element={
+              <Private>
+                <Dashboard />
+              </Private>
+            }
+          />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

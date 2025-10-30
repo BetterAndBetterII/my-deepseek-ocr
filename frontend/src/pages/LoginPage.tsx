@@ -35,16 +35,32 @@ export default function LoginPage() {
         <div className="text-lg font-semibold text-center">登录</div>
         <div className="grid gap-2">
           <Label htmlFor="username">用户名</Label>
-          <Input id="username" value={username} onChange={(e) => setUsername(e.target.value)} required />
+          <Input
+            id="username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            required
+          />
         </div>
         <div className="grid gap-2">
           <Label htmlFor="password">密码</Label>
-          <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <Input
+            id="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
         </div>
         {error && <div className="text-sm text-destructive">{error}</div>}
-        <Button className="w-full" disabled={loading} type="submit">{loading ? "登录中..." : "登录"}</Button>
+        <Button className="w-full" disabled={loading} type="submit">
+          {loading ? "登录中..." : "登录"}
+        </Button>
         <div className="text-center text-sm text-muted-foreground">
-          还没有账号？ <Link className="underline" to="/register">去注册</Link>
+          还没有账号？{" "}
+          <Link className="underline" to="/register">
+            去注册
+          </Link>
         </div>
         <div className="text-center text-xs text-muted-foreground">提示：本应用不存储用户信息</div>
       </form>

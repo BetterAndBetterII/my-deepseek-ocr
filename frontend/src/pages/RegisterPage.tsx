@@ -37,17 +37,33 @@ export default function RegisterPage() {
         <div className="text-lg font-semibold text-center">注册</div>
         <div className="grid gap-2">
           <Label htmlFor="username">用户名</Label>
-          <Input id="username" value={username} onChange={(e) => setUsername(e.target.value)} required />
+          <Input
+            id="username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            required
+          />
         </div>
         <div className="grid gap-2">
           <Label htmlFor="password">密码</Label>
-          <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <Input
+            id="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
         </div>
         {error && <div className="text-sm text-destructive">{error}</div>}
         {ok && <div className="text-sm text-green-600">注册成功，正在跳转登录...</div>}
-        <Button className="w-full" type="submit">注册</Button>
+        <Button className="w-full" type="submit">
+          注册
+        </Button>
         <div className="text-center text-sm text-muted-foreground">
-          已有账号？ <Link className="underline" to="/login">去登录</Link>
+          已有账号？{" "}
+          <Link className="underline" to="/login">
+            去登录
+          </Link>
         </div>
         <div className="text-center text-xs text-muted-foreground">提示：本应用不存储用户信息</div>
       </form>

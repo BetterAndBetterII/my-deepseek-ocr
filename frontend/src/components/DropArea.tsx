@@ -3,20 +3,24 @@ import { cn } from "@/lib/utils";
 
 type Props = {
   onFiles: (files: File[]) => void;
-  accept?: string; // e.g. "image/*,application/pdf"
   children?: React.ReactNode;
   className?: string;
 };
 
-export function DropArea({ onFiles, accept = "image/*,application/pdf", children, className }: Props) {
+export function DropArea({ onFiles, children, className }: Props) {
   const [dragging, setDragging] = useState(false);
 
-  const handleFiles = useCallback((files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    const arr = Array.from(files);
-    const allowed = arr.filter(f => f.type.startsWith("image/") || f.type === "application/pdf");
-    if (allowed.length > 0) onFiles(allowed);
-  }, [onFiles]);
+  const handleFiles = useCallback(
+    (files: FileList | null) => {
+      if (!files || files.length === 0) return;
+      const arr = Array.from(files);
+      const allowed = arr.filter(
+        (f) => f.type.startsWith("image/") || f.type === "application/pdf",
+      );
+      if (allowed.length > 0) onFiles(allowed);
+    },
+    [onFiles],
+  );
 
   const onDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -61,4 +65,3 @@ export function DropArea({ onFiles, accept = "image/*,application/pdf", children
     </div>
   );
 }
-

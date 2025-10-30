@@ -132,3 +132,43 @@ Notes:
 - Alembic reads DB URL from `.env` via application settings. Ensure `.env` has `DATABASE_URL` (default `sqlite+aiosqlite:///./data.db`).
 - If you prefer overriding URL at runtime, you can set env var `DATABASE_URL` before running Alembic.
 - The app still creates tables on startup for convenience in dev. For production, run `alembic upgrade head` instead of relying on auto-create.
+Docker Image
+------------
+
+Build an image using uv (multi-stage):
+
+- `docker build -t my-ocr:latest .`
+
+Run the container (override envs as needed):
+
+- `docker run --rm -p 9000:9000 \
+    -e LLM_BASE_URL=http://host.docker.internal:8000/v1 \
+    -e AUTH_ENABLED=true \
+    --name my-ocr my-ocr:latest`
+
+Notes:
+- The image is built with uv and a locked `.venv` copied into the runner stage for fast startup.
+- If your OCR server runs on the host, set `LLM_BASE_URL` to a reachable address from the container (e.g., `host.docker.internal` on macOS/Windows; on Linux, use your host IP or a Docker network alias).
+- Default command: `uvicorn app.main:app --host 0.0.0.0 --port 9000`
+
+Docker Compose
+--------------
+
+This repo ships a `docker-compose.yml` that wires backend API and a frontend app (expected under `./frontend`).
+
+- Bring everything up:
+
+  - `docker compose up -d --build`
+
+- Services:
+  - `api`: FastAPI backend at `http://localhost:9000` (Prometheus `/metrics` exposed)
+    - DB persisted to a named volume, mapped at `/app/_data` inside the container via `DATABASE_URL=sqlite+aiosqlite:///./_data/data.db`.
+    - `LLM_BASE_URL` defaults to `http://engine:8000/v1`; if you don't run an engine in compose, set it to your external OCR server.
+  - `web`: Frontend at `http://localhost:3000`. Build args `VITE_API_BASE_URL` and `NEXT_PUBLIC_API_BASE_URL` point to `http://api:9000`.
+
+- Frontend image expectations (typical Vite):
+  - Multi-stage Dockerfile: Node builder installs deps + `npm run build`; Nginx runner serves `dist` at port 80.
+  - If using Next.js SSR, runner should be a Node runtime exposing port 3000; adjust `docker-compose.yml` accordingly.
+
+- Optional OCR engine:
+  - A placeholder `engine` service is commented in `docker-compose.yml`. If you containerize your engine, enable it and keep `LLM_BASE_URL` as `http://engine:8000/v1`.

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -23,7 +23,9 @@ export function StreamViewer({ value, onChange, streaming, onCopy }: Props) {
       <div className="flex items-center justify-between border-b px-3 py-2">
         <div className="text-sm text-muted-foreground">OCR 结果（Markdown）</div>
         <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={onCopy}>复制</Button>
+          <Button size="sm" variant="outline" onClick={onCopy}>
+            复制
+          </Button>
         </div>
       </div>
       <div className="flex-1 overflow-hidden p-2">

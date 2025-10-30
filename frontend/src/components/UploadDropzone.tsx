@@ -15,12 +15,17 @@ export function UploadDropzone({ onFiles, accept = "image/*,application/pdf" }: 
 
   const openPicker = () => inputRef.current?.click();
 
-  const handleFiles = useCallback((files: FileList | File[] | null) => {
-    if (!files) return;
-    const arr = Array.from(files);
-    const allowed = arr.filter(f => f.type.startsWith("image/") || f.type === "application/pdf");
-    if (allowed.length) onFiles(allowed);
-  }, [onFiles]);
+  const handleFiles = useCallback(
+    (files: FileList | File[] | null) => {
+      if (!files) return;
+      const arr = Array.from(files);
+      const allowed = arr.filter(
+        (f) => f.type.startsWith("image/") || f.type === "application/pdf",
+      );
+      if (allowed.length) onFiles(allowed);
+    },
+    [onFiles],
+  );
 
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -50,15 +55,16 @@ export function UploadDropzone({ onFiles, accept = "image/*,application/pdf" }: 
         handleFiles(items);
       }
     };
-    el.addEventListener('paste', onPaste);
-    return () => el.removeEventListener('paste', onPaste);
+    el.addEventListener("paste", onPaste);
+    return () => el.removeEventListener("paste", onPaste);
   }, [handleFiles]);
 
   return (
-    <div ref={rootRef}
+    <div
+      ref={rootRef}
       className={cn(
         "relative rounded-md border border-dashed p-6 text-center transition-colors focus-within:outline-none focus-within:ring-2 focus-within:ring-ring",
-        isDragging ? "bg-accent" : "bg-background"
+        isDragging ? "bg-accent" : "bg-background",
       )}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
@@ -74,11 +80,14 @@ export function UploadDropzone({ onFiles, accept = "image/*,application/pdf" }: 
         onChange={(e) => handleFiles(e.target.files)}
       />
       <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
-        <ImageDown className="h-6 w-6"/>
+        <ImageDown className="h-6 w-6" />
         <div>粘贴、拖拽或点击上传图片/PDF</div>
         <div className="text-xs">支持 PNG / JPG / WEBP / PDF</div>
         <div className="mt-2">
-          <Button size="sm" onClick={openPicker}><FileUp className="h-4 w-4 mr-2"/>选择文件</Button>
+          <Button size="sm" onClick={openPicker}>
+            <FileUp className="h-4 w-4 mr-2" />
+            选择文件
+          </Button>
         </div>
       </div>
     </div>
