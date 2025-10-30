@@ -1,174 +1,139 @@
-My OCR FastAPI
-===============
+My OCR
+======
 
-A fully-async FastAPI backend providing:
-- OAuth2 (password flow) login via JWT
-- Upload image for OCR (streamed text)
-- Upload PDF for OCR (streamed text, per-page)
-- User info and usage statistics (SQLite)
+An end-to-end OCR product with:
+- Backend: FastAPI + Async SQLAlchemy + JWT auth, streaming OCR via an OpenAI-compatible engine
+- Frontend: React + Vite + Tailwind, real-time streaming UI for Image/PDF OCR
+- Ops: Prometheus metrics, Alembic migrations, Dockerized backend and frontend (Nginx)
 
-It uses a local DeepSeek OCR server exposed via an OpenAI-compatible API. The included demo (`demo/demo.py`) shows how to call that OCR server directly.
+This README explains the architecture, how to develop locally, and how to deploy.
 
-Quick start
------------
+**High-Level Architecture**
+- Frontend (Vite React) builds to static assets. In production it calls relative `"/api/..."` and Nginx proxies to the backend.
+- Backend (FastAPI) exposes REST + streaming endpoints and persists usage in SQLite (async engine).
+- OCR Engine is external, exposed as an OpenAI-compatible API (configured by env vars).
+- Prometheus metrics are exposed by the backend at `/metrics`.
 
-1) Install dependencies (recommend `uv`):
+```
+Browser ──> Nginx (serves SPA + proxies /api) ──> FastAPI (app/main.py)
+                                              ├─> SQLite (usage + users)
+                                              └─> AsyncOpenAI client -> OCR engine (OpenAI-compatible)
+```
 
-   - `uv sync`
-   - Or with pip: `pip install -e .`
+**Backend Overview**
+- App factory and lifespan: `app/main.py:1`
+  - Creates tables on startup, bootstraps a demo user, attaches metrics middleware, mounts routers.
+- Configuration: `app/core/config.py:1`
+  - Pydantic settings via `.env`. Controls auth toggle, DB URL, LLM/OpenAI base, model, default prompt.
+- Database: `app/db.py:1`, models at `app/models.py:1`, Alembic config at `alembic/env.py:1`.
+- Auth: `app/routers/auth.py:1`
+  - OAuth2 password flow, JWT, optional anonymous mode when `AUTH_ENABLED=false`.
+- Users + usage: `app/routers/users.py:1`
+  - Current user, recent usage, usage summary.
+- OCR: `app/routers/ocr.py:1`
+  - `POST /ocr/image` streams content deltas (NDJSON).
+  - `POST /ocr/pdf` converts PDF pages to images via `pypdfium2` and streams per-page events concurrently.
+- OpenAI client: `app/ocr_client.py:1`
+  - `AsyncOpenAI(base_url=LLM_BASE_URL, api_key=LLM_API_KEY)`.
+- Metrics: `app/middleware.py:1` (HTTP metrics), `app/metrics.py:1` (Prometheus counters/gauges/histograms), route at `app/routers/metrics.py:1`.
 
-2) Ensure you have a DeepSeek OCR server running with an OpenAI-compatible endpoint. Defaults match the demo:
+**Streaming Format (NDJSON)**
+- Image OCR
+  - Start: `{ "type":"start", "kind":"image" }`
+  - Delta: `{ "type":"delta", "delta":"..." }` (repeated)
+  - End: `{ "type":"end", "usage":{ prompt_tokens, completion_tokens, prompt_chars, completion_chars, input_bytes } }`
+- PDF OCR
+  - Start: `{ "type":"start", "kind":"pdf", "pages":N }`
+  - For each page i: `page_start` → many `page_delta` → `page_end`
+  - End: `{ "type":"end", "usage":{ prompt_tokens, completion_tokens, prompt_chars, completion_chars, input_bytes, pages } }`
 
-   - `LLM_BASE_URL=http://localhost:8000/v1`
-   - `LLM_API_KEY=token-abc123`
-   - `LLM_MODEL=deepseek-ai/DeepSeek-OCR`
+**Frontend Overview**
+- Vite + React + TypeScript + Tailwind (shadcn UI components).
+- Build-time API base: `frontend/src/lib/utils.ts:10`
+  - Production forces `"/api"` so Nginx decides proxy target.
+  - Development can override with `VITE_API_BASE_URL`.
+- API client: `frontend/src/lib/api.ts:1` encapsulates fetches and streaming.
+- Auth provider: `frontend/src/lib/auth.tsx:1` stores token and supports anonymous mode when backend disables auth.
+- Main UI: `frontend/src/pages/Dashboard.tsx:1` handles uploads (image/PDF), streaming displays, usage summary/history.
+- Streaming viewers: `frontend/src/components/StreamViewer.tsx:1`, `frontend/src/components/PdfStreamViewer.tsx:1`.
+- Drag/drop + paste: `frontend/src/components/DropArea.tsx:1`, `frontend/src/components/UploadDropzone.tsx:1`.
 
-   Override via env vars if needed.
+**Backend API Endpoints**
+- Auth
+  - `POST /auth/register` — register demo users
+  - `POST /auth/token` — OAuth2 password flow (form `username`, `password`)
+- Users
+  - `GET /users/me` — current user
+  - `GET /users/me/usage` — usage list (latest 200)
+  - `GET /users/me/usage/summary` — totals (events, bytes, tokens, chars)
+- OCR
+  - `POST /ocr/image` — multipart `file` (+ optional `prompt`), NDJSON stream
+  - `POST /ocr/pdf` — multipart `file` (+ optional `prompt`), NDJSON stream per page
+- Metrics
+  - `GET /metrics` — Prometheus exposition
 
-3) Run API (fully async):
+**Configuration (Backend)**
+- Required/important envs (`.env` supported):
+  - `SECRET_KEY` (>= 8 chars), `ALGORITHM` (`HS256|HS384|HS512`), `ACCESS_TOKEN_EXPIRE_MINUTES`
+  - `DATABASE_URL` (default `sqlite+aiosqlite:///./data.db`)
+  - `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`, `LLM_PROMPT`
+  - `AUTH_ENABLED` (default `false`), `ANON_USERNAME` (default `anonymous`)
+  - `BOOTSTRAP_USER`/`BOOTSTRAP_PASS` for the demo user
 
-   - `uvicorn app.main:app --reload --port 9000`
+**Configuration (Frontend)**
+- Production API base is always `"/api"` and proxied by Nginx at runtime.
+- Development options:
+  - Set `VITE_API_BASE_URL=http://localhost:8000` to call backend directly.
+  - Or rely on Vite dev proxy in `frontend/vite.config.ts:17` (defaults to proxy `/api` → `http://localhost:8001`). Adjust as needed.
 
-4) Auth and usage:
+**Local Development**
+- Backend
+  - Python deps: `pip install -r requirements.txt`
+  - Run API: `uvicorn app.main:app --reload --port 8000`
+  - Ensure OCR engine is reachable at `LLM_BASE_URL` (default `http://localhost:8000/v1`, change if conflicting with your API port).
+- Frontend
+  - `cd frontend && pnpm install`
+  - Option A (direct): `VITE_API_BASE_URL=http://localhost:8000 pnpm dev`
+  - Option B (proxy): set Vite proxy target in `frontend/vite.config.ts:17` to your API port and run `pnpm dev`
 
-   - On startup a demo user is created: username `demo`, password `demo123` (override with `BOOTSTRAP_USER`, `BOOTSTRAP_PASS`).
-   - Get token: `POST /auth/token` with form fields `username`, `password`.
-   - Use the bearer token for protected endpoints.
+**Docker**
+- Backend image
+  - `docker build -t my-ocr-api:latest .`
+  - Runs `uvicorn app.main:app --host 0.0.0.0 --port 8000`
+- Frontend image
+  - `cd frontend && docker build -t my-ocr-web:latest .`
+  - Nginx serves `dist/`; `/api/` is proxied to `BACKEND_URL` at runtime via `frontend/docker-entrypoint.sh:1` and `frontend/nginx.conf.template:1`.
 
-Endpoints
----------
-
-- `POST /auth/register` — create user (demo purpose)
-- `POST /auth/token` — OAuth2 password flow
-- `GET /users/me` — current user info
-- `GET /users/me/usage` — recent usage events
-- `GET /users/me/usage/summary` — usage aggregates
-- `POST /ocr/image` — upload image file (png/jpeg/webp)
-  - Form fields: `file`, optional `prompt`
-  - Prompt: if omitted or empty, falls back to server config prompt (`LLM_PROMPT`)
-  - Streaming format: `application/x-ndjson` (JSON Lines)
-  - Events: `{type: start|delta|end, ...}`
-- `POST /ocr/pdf` — upload PDF; requires `pypdfium2` to convert pages to images.
-  - Form fields: `file`, optional `prompt`
-  - Prompt: if omitted or empty, falls back to server config prompt (`LLM_PROMPT`)
-  - Streaming format: `application/x-ndjson` (JSON Lines)。每页并发处理，按事件输出：
-    - `{"type":"start","kind":"pdf","pages":N}`
-    - `{"type":"page_start","page":i}`
-    - `{"type":"page_delta","page":i,"delta":"..."}`
-    - `{"type":"page_end","page":i,"usage":{prompt_tokens,completion_tokens,completion_chars}}`
-    - `{"type":"end","usage":{prompt_tokens,completion_tokens,prompt_chars,completion_chars,input_bytes,pages}}`
-  - If parsing fails, returns 400.
-- `GET /metrics` — Prometheus metrics endpoint
-
-Streaming
----------
-
-Responses stream as `application/x-ndjson; charset=utf-8` (JSON Lines) via async generators.
-
-Environment
------------
-
-- `SECRET_KEY`, `ALGORITHM`, `ACCESS_TOKEN_EXPIRE_MINUTES`
-- `DATABASE_URL` (default `sqlite+aiosqlite:///./data.db`)
-- `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`, `LLM_PROMPT`
-- `BOOTSTRAP_USER`, `BOOTSTRAP_PASS`
-- `AUTH_ENABLED` (default `true`): set `false` to disable auth; all endpoints become open. When disabled, requests run as an auto-created `ANON_USERNAME` (default `anonymous`).
-- `ANON_USERNAME` (default `anonymous`)
-
-Config via .env
----------------
-
-- Uses pydantic-settings; environment variables can be provided in a `.env` file.
-- Copy `.env.example` to `.env` and adjust values:
-
-  - `cp .env.example .env`
-
-- Validation:
-  - `SECRET_KEY` must be at least 8 characters
-  - `ALGORITHM` must be one of `HS256`, `HS384`, `HS512`
-  - `ACCESS_TOKEN_EXPIRE_MINUTES` must be 1..10080
-  - `LLM_BASE_URL` must be a valid URL
-
-Notes
------
-
-- Token usage may not be available from all backends during streaming; the app records character counts and input bytes by default.
-- PDF support requires `pypdfium2`; if missing or parsing fails, the API returns 400 and does not attempt direct PDF input (not supported by the OpenAI-compatible backend).
-- Password hashing uses PBKDF2-SHA256 (via passlib) to avoid bcrypt version/ABI issues and 72-byte length limit.
-- Exposes Prometheus metrics: concurrency, OCR in-progress, request counters, latency histograms, token counts (real usage when available; fallback approx chars/4), user count, image/pdf counters.
-
-Prometheus Metrics
-------------------
-
-- `http_in_flight_requests` (gauge): current in-flight HTTP requests
-- `http_requests_total{method, path, status}` (counter): total HTTP requests
-- `http_request_duration_seconds{method, path}` (histogram): request duration (includes streaming)
-- `ocr_in_progress{kind}` (gauge): current OCR operations in progress (`image`/`pdf`)
-- `ocr_requests_total{kind}` (counter): total OCR requests by kind
-- `image_requests_total`, `pdf_requests_total` (counter): total image/PDF OCR requests
-- `ocr_processing_seconds{kind}` (histogram): total OCR processing time (per request)
-- `ocr_input_bytes_total{kind}` (counter): total input bytes by kind
-- `users_total` (gauge): registered users
-- `prompt_tokens_total`, `completion_tokens_total`, `tokens_total` (counter): token counts (approx chars/4)
-Database Migrations (Alembic)
------------------------------
-
-This repo includes Alembic setup for schema migrations (async SQLite by default).
-
-- Initialize (already done in repo): `alembic.ini`, `alembic/env.py`, and versions directory exist.
-- Create a new migration from models (autogenerate):
-
-  - `alembic revision --autogenerate -m "describe changes"`
-
-- Apply migrations to latest:
-
-  - `alembic upgrade head`
-
-- Downgrade one step:
-
-  - `alembic downgrade -1`
-
-Notes:
-- Alembic reads DB URL from `.env` via application settings. Ensure `.env` has `DATABASE_URL` (default `sqlite+aiosqlite:///./data.db`).
-- If you prefer overriding URL at runtime, you can set env var `DATABASE_URL` before running Alembic.
-- The app still creates tables on startup for convenience in dev. For production, run `alembic upgrade head` instead of relying on auto-create.
-Docker Image
-------------
-
-Build an image using uv (multi-stage):
-
-- `docker build -t my-ocr:latest .`
-
-Run the container (override envs as needed):
-
-- `docker run --rm -p 9000:9000 \
-    -e LLM_BASE_URL=http://host.docker.internal:8000/v1 \
-    -e AUTH_ENABLED=true \
-    --name my-ocr my-ocr:latest`
-
-Notes:
-- The image is built with uv and a locked `.venv` copied into the runner stage for fast startup.
-- If your OCR server runs on the host, set `LLM_BASE_URL` to a reachable address from the container (e.g., `host.docker.internal` on macOS/Windows; on Linux, use your host IP or a Docker network alias).
-- Default command: `uvicorn app.main:app --host 0.0.0.0 --port 9000`
-
-Docker Compose
---------------
-
-This repo ships a `docker-compose.yml` that wires backend API and a frontend app (expected under `./frontend`).
-
-- Bring everything up:
-
-  - `docker compose up -d --build`
-
+**Docker Compose (example)**
+- `docker compose up -d --build`
 - Services:
-  - `api`: FastAPI backend at `http://localhost:9000` (Prometheus `/metrics` exposed)
-    - DB persisted to a named volume, mapped at `/app/_data` inside the container via `DATABASE_URL=sqlite+aiosqlite:///./_data/data.db`.
-    - `LLM_BASE_URL` defaults to `http://engine:8000/v1`; if you don't run an engine in compose, set it to your external OCR server.
-  - `web`: Frontend at `http://localhost:3000`. Build args `VITE_API_BASE_URL` and `NEXT_PUBLIC_API_BASE_URL` point to `http://api:9000`.
+  - `api` — FastAPI at a chosen port (ensure container listens on 8000; map host port accordingly)
+  - `web` — Nginx at `http://localhost:3000`, set env `BACKEND_URL` so `/api` proxies correctly, e.g. `http://api:8000`
+- Note: The provided compose file is a template; verify port mappings and `BACKEND_URL` line up with your API port.
 
-- Frontend image expectations (typical Vite):
-  - Multi-stage Dockerfile: Node builder installs deps + `npm run build`; Nginx runner serves `dist` at port 80.
-  - If using Next.js SSR, runner should be a Node runtime exposing port 3000; adjust `docker-compose.yml` accordingly.
+**Migrations (Alembic)**
+- Autogenerate: `alembic revision --autogenerate -m "msg"`
+- Upgrade: `alembic upgrade head`
+- Downgrade: `alembic downgrade -1`
 
-- Optional OCR engine:
-  - A placeholder `engine` service is commented in `docker-compose.yml`. If you containerize your engine, enable it and keep `LLM_BASE_URL` as `http://engine:8000/v1`.
+**Security Notes**
+- Use a strong `SECRET_KEY` in production.
+- Consider enabling `AUTH_ENABLED=true` to require tokens; otherwise requests run as `anonymous`.
+- Restrict Nginx to only proxy intended routes under `/api/`.
+
+**Known Notes / Gotchas**
+- Dev proxy default is `http://localhost:8001` in `vite.config.ts`. Either run API on 8001, set `VITE_API_BASE_URL`, or change the proxy.
+- PDF OCR depends on `pypdfium2`; in minimal environments it may need extra system libs.
+- Token usage metrics depend on the OCR engine’s streaming support; code falls back to approximations when unavailable.
+
+**Repository Pointers**
+- Backend entry: `app/main.py:1`
+- OCR router: `app/routers/ocr.py:1`
+- Auth router: `app/routers/auth.py:1`
+- Users + usage: `app/routers/users.py:1`
+- Models: `app/models.py:1`
+- Settings: `app/core/config.py:1`
+- Frontend API base: `frontend/src/lib/utils.ts:10`
+- Dev proxy: `frontend/vite.config.ts:17`
+
+MIT-style license or your chosen terms can be added here.
