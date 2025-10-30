@@ -11,7 +11,7 @@ from app.routers.metrics import router as metrics_router
 from app.middleware import MetricsMiddleware
 from app.metrics import set_users_total
 from app.security import get_password_hash
-import anyio
+from asgiref.sync import sync_to_async
 
 
 @asynccontextmanager
@@ -25,10 +25,14 @@ async def lifespan(app: FastAPI):
         result = await session.execute(select(User).filter_by(username=settings.BOOTSTRAP_USER))
         user = result.scalar_one_or_none()
         if not user:
-            password_hash = await anyio.to_thread.run_sync(get_password_hash, settings.BOOTSTRAP_PASS)
-            user = User(username=settings.BOOTSTRAP_USER, password_hash=password_hash)
-            session.add(user)
-            await session.commit()
+            from sqlalchemy.exc import IntegrityError
+            try:
+                password_hash = await sync_to_async(get_password_hash, thread_sensitive=False)(settings.BOOTSTRAP_PASS)
+                user = User(username=settings.BOOTSTRAP_USER, password_hash=password_hash)
+                session.add(user)
+                await session.commit()
+            except IntegrityError:
+                await session.rollback()
         # update users_total gauge
         from sqlalchemy import func
         count = await session.execute(select(func.count(User.id)))

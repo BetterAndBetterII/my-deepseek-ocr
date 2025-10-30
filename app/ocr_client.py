@@ -9,5 +9,5 @@ _client: Optional[AsyncOpenAI] = None
 def get_client() -> AsyncOpenAI:
     global _client
     if _client is None:
-        _client = AsyncOpenAI(base_url=settings.LLM_BASE_URL, api_key=settings.LLM_API_KEY)
+        _client = AsyncOpenAI(base_url=str(settings.LLM_BASE_URL), api_key=settings.LLM_API_KEY)
     return _client

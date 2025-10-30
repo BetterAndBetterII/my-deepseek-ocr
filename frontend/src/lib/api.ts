@@ -5,6 +5,27 @@ export type TokenInfo = {
   token_type: string;
 };
 
+export type UsageEvent = {
+  id: number;
+  kind: string;
+  prompt_chars: number;
+  completion_chars: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  input_bytes: number;
+  meta?: string | null;
+  created_at: string;
+};
+
+export type UsageSummary = {
+  total_events: number;
+  total_input_bytes: number;
+  total_prompt_tokens: number;
+  total_completion_tokens: number;
+  total_prompt_chars: number;
+  total_completion_chars: number;
+};
+
 export function authHeaders(token?: string) {
   const headers: Record<string, string> = {};
   if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -18,7 +39,20 @@ export async function login(username: string, password: string): Promise<TokenIn
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
   });
-  if (!res.ok) throw new Error(`Login failed: ${res.status}`);
+  if (!res.ok) {
+    // Map 401 to a friendlier message in Chinese
+    if (res.status === 401) {
+      throw new Error("密码错误");
+    }
+    // Try to surface backend detail, otherwise generic
+    try {
+      const data = await res.json();
+      const detail = typeof data?.detail === 'string' ? data.detail : undefined;
+      throw new Error(detail || `登录失败: ${res.status}`);
+    } catch {
+      throw new Error(`登录失败: ${res.status}`);
+    }
+  }
   return res.json();
 }
 
@@ -32,19 +66,19 @@ export async function registerUser(username: string, password: string) {
   return res.json();
 }
 
-export async function me(token: string) {
+export async function me(token?: string) {
   const res = await fetch(`${API_BASE}/users/me`, { headers: authHeaders(token) });
   if (!res.ok) throw new Error(`Me failed: ${res.status}`);
   return res.json();
 }
 
-export async function usageSummary(token: string) {
+export async function usageSummary(token?: string): Promise<UsageSummary> {
   const res = await fetch(`${API_BASE}/users/me/usage/summary`, { headers: authHeaders(token) });
   if (!res.ok) throw new Error(`Usage summary failed: ${res.status}`);
   return res.json();
 }
 
-export async function usageList(token: string) {
+export async function usageList(token?: string): Promise<UsageEvent[]> {
   const res = await fetch(`${API_BASE}/users/me/usage`, { headers: authHeaders(token) });
   if (!res.ok) throw new Error(`Usage list failed: ${res.status}`);
   return res.json();
@@ -53,7 +87,7 @@ export async function usageList(token: string) {
 export type OCRKind = "image" | "pdf";
 
 export function uploadAndStream(
-  token: string,
+  token: string | undefined,
   file: File,
   kind: OCRKind,
   onChunk: (text: string) => void,
@@ -82,4 +116,3 @@ export function uploadAndStream(
     if (buf) onChunk(buf);
   });
 }
-

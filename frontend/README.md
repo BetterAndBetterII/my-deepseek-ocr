@@ -6,6 +6,7 @@ React + Vite + Tailwind + shadcn UI. Supports:
 - Paste, click, or drag-and-drop upload for images and PDFs
 - Streaming OCR result display (plain text streaming)
 - User info + usage summary/history
+ - Auto-skip login when backend disables auth (`AUTH_ENABLED=false`)
 
 ## Dev Setup
 
@@ -28,10 +29,10 @@ pnpm preview
 
 ## Notes
 - Uses localStorage to store access token.
+- If backend sets `AUTH_ENABLED=false`, frontend detects it by calling `/users/me` without a token and skips the login flow.
 - Backend endpoints used:
   - `POST /auth/register` JSON {username, password}
   - `POST /auth/token` form `username`, `password`
   - `GET /users/me`
   - `GET /users/me/usage` and `/users/me/usage/summary`
   - `POST /ocr/image` and `/ocr/pdf` with `multipart/form-data` field `file`, response is streaming `text/plain`.
-

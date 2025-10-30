@@ -46,6 +46,7 @@ export function UploadDropzone({ onFiles, accept = "image/*,application/pdf" }: 
       const items = e.clipboardData?.files || null;
       if (items && items.length > 0) {
         e.preventDefault();
+        e.stopPropagation();
         handleFiles(items);
       }
     };
@@ -83,4 +84,3 @@ export function UploadDropzone({ onFiles, accept = "image/*,application/pdf" }: 
     </div>
   );
 }
-

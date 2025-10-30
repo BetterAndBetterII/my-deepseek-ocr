@@ -4,13 +4,20 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { registerUser } from "@/lib/api";
 import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/lib/auth";
+import { useEffect } from "react";
 
 export default function RegisterPage() {
+  const { authDisabled } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (authDisabled) navigate("/", { replace: true });
+  }, [authDisabled, navigate]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,8 +49,8 @@ export default function RegisterPage() {
         <div className="text-center text-sm text-muted-foreground">
           已有账号？ <Link className="underline" to="/login">去登录</Link>
         </div>
+        <div className="text-center text-xs text-muted-foreground">提示：本应用不存储用户信息</div>
       </form>
     </div>
   );
 }
-

@@ -6,8 +6,9 @@ import { useAuth } from "@/lib/auth";
 import { Navbar } from "@/components/Navbar";
 
 function Private({ children }: { children: JSX.Element }) {
-  const { token } = useAuth();
-  if (!token) return <Navigate to="/login" replace />;
+  const { token, authDisabled, ready } = useAuth();
+  if (!ready) return null;
+  if (!token && !authDisabled) return <Navigate to="/login" replace />;
   return children;
 }
 
@@ -26,4 +27,3 @@ export default function App() {
     </div>
   );
 }
-

@@ -1,22 +1,22 @@
-import React, { useEffect, useMemo, useRef } from "react";
-import ReactMarkdown from "react-markdown";
+import React, { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 
 type Props = {
-  content: string;
+  value: string;
+  onChange: (next: string) => void;
   streaming: boolean;
   onCopy?: () => void;
 };
 
-export function StreamViewer({ content, streaming, onCopy }: Props) {
-  const ref = useRef<HTMLDivElement>(null);
+export function StreamViewer({ value, onChange, streaming, onCopy }: Props) {
+  const ref = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
-    if (streaming && ref.current) {
+    if (ref.current && streaming) {
+      // keep textarea scrolled to bottom while streaming
       ref.current.scrollTop = ref.current.scrollHeight;
     }
-  }, [content, streaming]);
-
-  const text = useMemo(() => content, [content]);
+  }, [value, streaming]);
 
   return (
     <div className="flex flex-col h-full">
@@ -26,8 +26,14 @@ export function StreamViewer({ content, streaming, onCopy }: Props) {
           <Button size="sm" variant="outline" onClick={onCopy}>复制</Button>
         </div>
       </div>
-      <div ref={ref} className="flex-1 overflow-auto p-4">
-        <ReactMarkdown>{text || ""}</ReactMarkdown>
+      <div className="flex-1 overflow-hidden p-2">
+        <Textarea
+          ref={ref}
+          className="h-full min-h-0 resize-none font-mono"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          spellCheck={false}
+        />
       </div>
     </div>
   );
