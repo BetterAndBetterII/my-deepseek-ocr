@@ -9,13 +9,17 @@ server {
   listen 80;
   server_name _;
 
+  # Allow uploads up to 50MB to avoid 413 errors
+  client_max_body_size 50m;
+
   root   /usr/share/nginx/html;
   index  index.html;
 
-  # Proxy API to runtime backend URL
+  # Proxy API to runtime backend URL (preserve `/api` prefix)
   location /api/ {
-    # Trailing slash ensures path is appended as-is
-    proxy_pass ${BACKEND_URL}/;
+    # Note: without trailing slash, Nginx preserves the matched prefix.
+    # e.g. /api/foo -> ${BACKEND_URL}/api/foo
+    proxy_pass ${BACKEND_URL};
 
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
@@ -48,4 +52,3 @@ server {
     try_files $uri /index.html;
   }
 }
-

@@ -1,0 +1,122 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "refresh": "10s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["ocr", "prometheus"],
+  "templating": {
+    "list": [
+      {
+        "name": "job",
+        "type": "query",
+        "label": "Job",
+        "datasource": "Prometheus",
+        "query": "label_values(up, job)",
+        "refresh": 2,
+        "includeAll": false,
+        "multi": false,
+        "current": {
+          "selected": true,
+          "text": "my-ocr-api",
+          "value": "my-ocr-api"
+        }
+      }
+    ]
+  },
+  "time": {"from": "now-6h", "to": "now"},
+  "timepicker": {},
+  "timezone": "",
+  "title": "OCR Overview",
+  "uid": "ocr-overview",
+  "version": 1,
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "OCR Requests/s by Kind",
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
+      "targets": [
+        {"expr": "sum by (kind)(rate(ocr_requests_total{job=\"$job\"}[1m]))", "refId": "A"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "OCR Processing Latency p95/p99 (s)",
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
+      "targets": [
+        {"expr": "histogram_quantile(0.95, sum by (le, kind)(rate(ocr_processing_seconds_bucket{job=\"$job\"}[5m])))", "refId": "A"},
+        {"expr": "histogram_quantile(0.99, sum by (le, kind)(rate(ocr_processing_seconds_bucket{job=\"$job\"}[5m])))", "refId": "B"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Input Bytes/s by Kind",
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
+      "targets": [
+        {"expr": "sum by (kind)(rate(ocr_input_bytes_total{job=\"$job\"}[1m]))", "refId": "A"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "In-Progress OCR by Kind",
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
+      "targets": [
+        {"expr": "sum by (kind)(ocr_in_progress{job=\"$job\"})", "refId": "A"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Tokens Generated / s",
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
+      "targets": [
+        {"expr": "rate(prompt_tokens_total{job=\"$job\"}[1m])", "refId": "A"},
+        {"expr": "rate(completion_tokens_total{job=\"$job\"}[1m])", "refId": "B"},
+        {"expr": "rate(tokens_total{job=\"$job\"}[1m])", "refId": "C"}
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Users Total",
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "values": false}, "orientation": "auto"},
+      "targets": [
+        {"expr": "users_total{job=\"$job\"}", "refId": "A"}
+      ]
+    }
+  ]
+}
+

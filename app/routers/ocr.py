@@ -29,6 +29,7 @@ async def _stream_openai_chat(messages, extra_body=None, usage_ref: dict | None 
         model=settings.LLM_MODEL,
         messages=messages,
         stream=True,
+        temperature=0.0,
         stream_options={"include_usage": True},
         extra_body=extra_body or {},
     )

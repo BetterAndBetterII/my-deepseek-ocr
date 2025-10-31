@@ -13,11 +13,10 @@ services:
       DATABASE_URL: ${DATABASE_URL:-sqlite+aiosqlite:///./_data/data.db}
       # Point backend to OCR engine reachable in compose (adjust if you run engine elsewhere)
       LLM_BASE_URL: ${LLM_BASE_URL:-http://engine:8000/v1}
-    ports:
-      - "9000:9000"
     volumes:
       - db-data:/app/_data
-    depends_on: []
+    depends_on:
+      - engine
 
   # Frontend: expects a Dockerfile under ./frontend to build the web app
   # Typical pattern (Vite): Node builder -> Nginx runner serving built assets
@@ -25,15 +24,9 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      args:
-        # Common patterns, adjust to your frontend framework
-        VITE_API_BASE_URL: http://api:9000
-        NEXT_PUBLIC_API_BASE_URL: http://api:9000
     container_name: my-ocr-web
     environment:
-      # Runtime env (if your frontend reads env at runtime via window.env or similar)
-      VITE_API_BASE_URL: http://api:9000
-      NEXT_PUBLIC_API_BASE_URL: http://api:9000
+      BACKEND_URL: http://api:8000
     ports:
       - "3000:80"
     depends_on:
@@ -60,6 +53,7 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/provisioning/dashboards/compose-jobs-overview.json
     ports:
       - "3001:3000"
     volumes:
@@ -68,16 +62,31 @@ services:
     depends_on:
       - prometheus
 
-  # Optional OCR engine (OpenAI-compatible) if you want to run it inside compose
-  # Replace image/command/env according to your engine setup; otherwise, point
-  # LLM_BASE_URL in the api service to an external endpoint.
-  # engine:
-  #   image: your-ocr-engine:latest
-  #   container_name: my-ocr-engine
-  #   ports:
-  #     - "8000:8000"
-  #   environment:
-  #     - SOME_ENGINE_ENV=...
+  engine:
+    image: vllm/vllm-openai:nightly
+    container_name: my-ocr-engine
+    restart: unless-stopped
+    gpus: "all"
+    ipc: "host"
+    shm_size: "16g"
+    ports:
+      - "8000:8000"
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=0,1
+    volumes:
+      - ${HOME}/.cache/huggingface:/root/.cache/huggingface
+      - ${HOME}/vllm:/root/vllm
+    command:
+      - --model
+      - deepseek-ai/DeepSeek-OCR
+      - --tensor-parallel-size
+      - "2"
+      - --distributed-executor-backend
+      - mp
+      - --logits-processors
+      - "vllm.model_executor.models.deepseek_ocr:NGramPerReqLogitsProcessor"
+      - --chat-template
+      - /root/vllm/template_deepseek_ocr.jinja
 
 volumes:
   db-data:

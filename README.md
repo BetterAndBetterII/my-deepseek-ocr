@@ -12,7 +12,7 @@ This README explains the architecture, how to develop locally, and how to deploy
 - Frontend (Vite React) builds to static assets. In production it calls relative `"/api/..."` and Nginx proxies to the backend.
 - Backend (FastAPI) exposes REST + streaming endpoints and persists usage in SQLite (async engine).
 - OCR Engine is external, exposed as an OpenAI-compatible API (configured by env vars).
-- Prometheus metrics are exposed by the backend at `/metrics`.
+- Prometheus metrics are exposed by the backend at `/metrics` (also available at `/api/metrics`).
 
 ```
 Browser ──> Nginx (serves SPA + proxies /api) ──> FastAPI (app/main.py)
@@ -58,19 +58,20 @@ Browser ──> Nginx (serves SPA + proxies /api) ──> FastAPI (app/main.py)
 - Streaming viewers: `frontend/src/components/StreamViewer.tsx:1`, `frontend/src/components/PdfStreamViewer.tsx:1`.
 - Drag/drop + paste: `frontend/src/components/DropArea.tsx:1`, `frontend/src/components/UploadDropzone.tsx:1`.
 
-**Backend API Endpoints**
+**Backend API Endpoints (prefixed with `/api`)**
 - Auth
-  - `POST /auth/register` — register demo users
-  - `POST /auth/token` — OAuth2 password flow (form `username`, `password`)
+  - `POST /api/auth/register` — register demo users
+  - `POST /api/auth/token` — OAuth2 password flow (form `username`, `password`)
 - Users
-  - `GET /users/me` — current user
-  - `GET /users/me/usage` — usage list (latest 200)
-  - `GET /users/me/usage/summary` — totals (events, bytes, tokens, chars)
+  - `GET /api/users/me` — current user
+  - `GET /api/users/me/usage` — usage list (latest 200)
+  - `GET /api/users/me/usage/summary` — totals (events, bytes, tokens, chars)
 - OCR
-  - `POST /ocr/image` — multipart `file` (+ optional `prompt`), NDJSON stream
-  - `POST /ocr/pdf` — multipart `file` (+ optional `prompt`), NDJSON stream per page
+  - `POST /api/ocr/image` — multipart `file` (+ optional `prompt`), NDJSON stream
+  - `POST /api/ocr/pdf` — multipart `file` (+ optional `prompt`), NDJSON stream per page
 - Metrics
-  - `GET /metrics` — Prometheus exposition
+  - `GET /metrics` — Prometheus exposition (compat)
+  - `GET /api/metrics` — Prometheus exposition (same content)
 
 **Configuration (Backend)**
 - Required/important envs (`.env` supported):
@@ -81,10 +82,10 @@ Browser ──> Nginx (serves SPA + proxies /api) ──> FastAPI (app/main.py)
   - `BOOTSTRAP_USER`/`BOOTSTRAP_PASS` for the demo user
 
 **Configuration (Frontend)**
-- Production API base is always `"/api"` and proxied by Nginx at runtime.
+- Production API base is always `"/api"` and proxied by Nginx at runtime (prefix preserved).
 - Development options:
   - Set `VITE_API_BASE_URL=http://localhost:8000` to call backend directly.
-  - Or rely on Vite dev proxy in `frontend/vite.config.ts:17` (defaults to proxy `/api` → `http://localhost:8001`). Adjust as needed.
+  - Or rely on Vite dev proxy in `frontend/vite.config.ts:17` (proxies `/api` → `http://localhost:8001/api` with prefix preserved). Adjust as needed.
 
 **Local Development**
 - Backend

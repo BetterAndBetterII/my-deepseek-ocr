@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi import APIRouter
 from contextlib import asynccontextmanager
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -45,9 +46,18 @@ def create_app() -> FastAPI:
 
     app.add_middleware(MetricsMiddleware)
 
-    app.include_router(auth.router)
-    app.include_router(ocr.router)
-    app.include_router(users.router)
+    # Mount all application routes under "/api" to comply with proxying rules
+    api_router = APIRouter(prefix="/api")
+    api_router.include_router(auth.router)
+    api_router.include_router(ocr.router)
+    api_router.include_router(users.router)
+    api_router.include_router(metrics_router)
+
+    # Primary: prefixed API
+    app.include_router(api_router)
+
+    # Compatibility: also expose Prometheus metrics at root for scrapers
+    # This keeps existing /metrics targets working while /api/metrics also exists
     app.include_router(metrics_router)
 
     return app

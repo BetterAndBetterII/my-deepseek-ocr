@@ -6,8 +6,19 @@ scrape_configs:
   - job_name: 'my-ocr-api'
     metrics_path: /metrics
     static_configs:
-      - targets: ['api:9000']
+      - targets: ['api:8000']
         labels:
           service: 'api'
           env: 'compose'
 
+  # vLLM engine (OpenAI-compatible server)
+  # Assumes the engine exposes Prometheus metrics at /metrics on port 8000.
+  # If the endpoint isn't available, enable it in the engine image/config
+  # (many vLLM builds include /metrics by default).
+  - job_name: 'vllm-engine'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['engine:8000']
+        labels:
+          service: 'engine'
+          env: 'compose'

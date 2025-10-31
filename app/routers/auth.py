@@ -13,7 +13,8 @@ from app.security import create_access_token, verify_password, get_password_hash
 from app.metrics import set_users_total
 
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token", auto_error=False)
+# Align OAuth2 token URL with the /api prefix used by the backend
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token", auto_error=False)
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 

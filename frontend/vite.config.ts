@@ -18,11 +18,11 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      // Frontend will call `/api/...` which proxies to FastAPI on 8000
+      // Frontend will call `/api/...` and keep the prefix when proxying to the backend
       "/api": {
         target: "http://localhost:8001",
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ""),
+        // No rewrite: preserve `/api` so backend also sees the prefix
       },
     },
   },

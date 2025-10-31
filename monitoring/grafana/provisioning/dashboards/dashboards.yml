@@ -1,0 +1,14 @@
+apiVersion: 1
+
+providers:
+  - name: "compose-dashboards"
+    orgId: 1
+    folder: "Compose"
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      # Allow Grafana to pick up any JSON dashboards in this directory
+      # including the one we add below.
+

@@ -1,0 +1,222 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "refresh": "10s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["vllm", "prometheus"],
+  "templating": {
+    "list": [
+      {
+        "name": "job",
+        "type": "query",
+        "label": "Job",
+        "datasource": "Prometheus",
+        "query": "label_values(up, job)",
+        "refresh": 2,
+        "includeAll": false,
+        "multi": false,
+        "current": {
+          "selected": false,
+          "text": "vllm-engine",
+          "value": "vllm-engine"
+        }
+      },
+      {
+        "name": "route",
+        "type": "query",
+        "label": "Route",
+        "datasource": "Prometheus",
+        "query": "label_values(http_requests_total{job=\"$job\"}, handler)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": ["$__all"]
+        }
+      }
+    ]
+  },
+  "time": {"from": "now-6h", "to": "now"},
+  "timepicker": {},
+  "timezone": "",
+  "title": "vLLM Overview",
+  "uid": "vllm-overview",
+  "version": 1,
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "HTTP Requests/s by Route",
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
+      "targets": [
+        {"expr": "sum by (handler)(rate(http_requests_total{job=\"$job\", handler=~\"$route\"}[1m]))", "refId": "A"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "HTTP Error Rate (%)",
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
+      "targets": [
+        {"expr": "100 * sum(rate(http_requests_total{job=\"$job\", status=~\"5..|4..\", handler=~\"$route\"}[5m])) / sum(rate(http_requests_total{job=\"$job\", handler=~\"$route\"}[5m]))", "refId": "A"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Request Latency p95/p99 (s) by Route",
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
+      "targets": [
+        {"expr": "histogram_quantile(0.95, sum by (le, handler)(rate(http_request_duration_seconds_bucket{job=\"$job\", handler=~\"$route\"}[5m])))", "refId": "A"},
+        {"expr": "histogram_quantile(0.99, sum by (le, handler)(rate(http_request_duration_seconds_bucket{job=\"$job\", handler=~\"$route\"}[5m])))", "refId": "B"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Requests In Progress",
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
+      "targets": [
+        {"expr": "sum(http_requests_in_progress{job=\"$job\", handler=~\"$route\"})", "refId": "A"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Tokens Generated / s",
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
+      "targets": [
+        {
+          "expr": "sum(rate({job=\"$job\", __name__=~\"(vllm.*|vllm:.*).*(generated|decode).*token.*(_total)?$\"}[1m]))",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Prompt/Prefill Tokens / s",
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
+      "targets": [
+        {
+          "expr": "sum(rate({job=\"$job\", __name__=~\"(vllm.*|vllm:.*).*(prompt|prefill).*token.*(_total)?$\"}[1m]))",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Queue / Waiting Requests",
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
+      "targets": [
+        {
+          "expr": "max({job=\"$job\", __name__=~\"(vllm.*|vllm:.*).*(queue|waiting).*\"})",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Running / In-flight Requests",
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
+      "targets": [
+        {
+          "expr": "max({job=\"$job\", __name__=~\"(vllm.*|vllm:.*).*(running|in_flight|inflight).*\"}) or sum(http_requests_in_progress{job=\"$job\"})",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Process RSS (bytes)",
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
+      "targets": [
+        {"expr": "process_resident_memory_bytes{job=\"$job\"}", "refId": "A"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU Seconds (rate)",
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
+      "targets": [
+        {"expr": "rate(process_cpu_seconds_total{job=\"$job\"}[1m])", "refId": "A"}
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Uptime",
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 40},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "values": false}, "orientation": "auto"},
+      "targets": [
+        {"expr": "time() - process_start_time_seconds{job=\"$job\"}", "refId": "A"}
+      ]
+    },
+    {
+      "type": "table",
+      "title": "vLLM Counters (top rate)",
+      "datasource": "Prometheus",
+      "gridPos": {"h": 10, "w": 9, "x": 6, "y": 40},
+      "options": {"showHeader": true},
+      "targets": [
+        {"expr": "topk(20, sum by (__name__)(rate({job=\"$job\", __name__=~\"(vllm.*|vllm:.*).*_total$\"}[5m])))", "refId": "A"}
+      ]
+    },
+    {
+      "type": "table",
+      "title": "vLLM Gauges",
+      "datasource": "Prometheus",
+      "gridPos": {"h": 10, "w": 9, "x": 15, "y": 40},
+      "options": {"showHeader": true},
+      "targets": [
+        {"expr": "sum by (__name__ )({job=\"$job\", __name__=~\"(vllm.*|vllm:.*)\", __name__!~\".*_total$\"})", "refId": "A"}
+      ]
+    }
+  ]
+}
+

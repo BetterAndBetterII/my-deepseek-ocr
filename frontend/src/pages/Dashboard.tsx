@@ -19,7 +19,7 @@ import { DropArea } from "@/components/DropArea";
 import { MetricsPills } from "@/components/MetricsPills";
 import { CompactHistory } from "@/components/CompactHistory";
 import { Fab } from "@/components/Fab";
-import { History, BarChart3 } from "lucide-react";
+import { History, BarChart3, FileText } from "lucide-react";
 import { PRESETS, getPresetByKey } from "@/lib/presets";
 import { usePresetStore } from "@/lib/presetStore";
 import { Input } from "@/components/ui/input";
@@ -35,6 +35,46 @@ export default function Dashboard() {
   const [summary, setSummary] = useState<UsageSum | null>(null);
   const [history, setHistory] = useState<UsageEvent[]>([]);
   const [insightsOpen, setInsightsOpen] = useState(false);
+  // 固定示例（写死文件路径与用途）。请将文件放在 frontend/public/samples 下。
+  const samples: {
+    key: string;
+    title: string;
+    desc: string;
+    url: string; // 源文件 URL
+    mime: string;
+    kind: "image" | "pdf";
+    prompt: string;
+    cover?: string; // 可选封面（用于 PDF）
+  }[] = [
+    {
+      key: "sample1",
+      title: "示例1 · 转 Markdown",
+      desc: "适合文字较多的图片",
+      url: "/samples/sample1.png",
+      mime: "image/png",
+      kind: "image",
+      prompt: "请将图片内容准确识别并整理为 Markdown 文本。",
+    },
+    {
+      key: "sample2",
+      title: "示例2 · 转 Markdown (PDF)",
+      desc: "PDF 示例，点击后自动识别",
+      url: "/samples/sample2.pdf",
+      mime: "application/pdf",
+      kind: "pdf",
+      prompt: "请将图片内容准确识别并整理为 Markdown 文本。",
+      cover: "/samples/sample2_cover.png",
+    },
+    {
+      key: "sample3",
+      title: "示例3 · 图片描述",
+      desc: "自动生成图片内容描述",
+      url: "/samples/sample3.png",
+      mime: "image/png",
+      kind: "image",
+      prompt: "请用中文简要描述这张图片的主要内容与细节。",
+    },
+  ];
   // preset prompts (global store)
   const presetKey = usePresetStore((s) => s.presetKey);
   const setPresetKey = usePresetStore((s) => s.setPresetKey);
@@ -59,6 +99,8 @@ export default function Dashboard() {
   useEffect(() => {
     refreshUsage();
   }, [token, refreshUsage]);
+
+  // 不做运行时扫描，示例资源完全写死由上方 samples 提供
 
   const onFiles = useCallback(
     async (files: File[]) => {
@@ -86,6 +128,8 @@ export default function Dashboard() {
               .map(([page, content]) => ({ page, content }));
             setPages(arr);
           };
+          const effectivePrompt = (promptOverrideRef.current ?? promptValue) as string | undefined;
+          promptOverrideRef.current = null;
           await uploadAndStream(
             token || undefined,
             file,
@@ -140,7 +184,7 @@ export default function Dashboard() {
               if (progressed) updatePages();
             },
             ctrl.signal,
-            promptValue,
+            effectivePrompt,
           );
           // parse any remaining buffered line at end
           const tail = jsonBuf.trim();
@@ -175,6 +219,8 @@ export default function Dashboard() {
         } else {
           let lastLen = 0;
           let jsonBuf = "";
+          const effectivePrompt = (promptOverrideRef.current ?? promptValue) as string | undefined;
+          promptOverrideRef.current = null;
           await uploadAndStream(
             token || undefined,
             file,
@@ -205,7 +251,7 @@ export default function Dashboard() {
               }
             },
             ctrl.signal,
-            promptValue,
+            effectivePrompt,
           );
           const tail = jsonBuf.trim();
           if (tail) {
@@ -229,6 +275,29 @@ export default function Dashboard() {
       }
     },
     [token, authDisabled, refreshUsage, promptValue],
+  );
+
+  // Optional: override prompt for the next run (used by sample cards)
+  const promptOverrideRef = useRef<string | null>(null);
+
+  const startWithSampleUrl = useCallback(
+    async (url: string, filename: string, mimeHint: string | undefined, prompt?: string) => {
+      if (!token && !authDisabled) return;
+      try {
+        const res = await fetch(url, { cache: "no-cache" });
+        if (!res.ok) throw new Error(`无法加载示例: ${res.status}`);
+        const blob = await res.blob();
+        const type = mimeHint || blob.type || (url.endsWith(".pdf") ? "application/pdf" : "");
+        const file = new File([blob], filename, {
+          type: type || blob.type || "application/octet-stream",
+        });
+        if (prompt && prompt.trim()) promptOverrideRef.current = prompt;
+        await onFiles([file]);
+      } catch (e) {
+        console.error(e);
+      }
+    },
+    [onFiles, token, authDisabled],
   );
 
   // Revoke old object URLs when preview changes or on unmount
@@ -356,11 +425,51 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <UploadDropzone onFiles={onFiles} />
+              {/* samples from public as clickable cards */}
+              <div className="mt-4 border-t pt-4">
+                <div className="text-sm text-muted-foreground mb-2">
+                  或者，直接点下面的示例开始体验：
+                </div>
+                <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
+                  {samples.map((s) => (
+                    <div
+                      key={s.key}
+                      role="button"
+                      className="group cursor-pointer border rounded-md overflow-hidden bg-background transition hover:shadow-lg hover:border-foreground/20"
+                      onClick={() =>
+                        startWithSampleUrl(
+                          s.url,
+                          `${s.key}${s.mime === "application/pdf" ? ".pdf" : ".png"}`,
+                          s.mime,
+                          s.prompt,
+                        )
+                      }
+                      title={s.desc}
+                    >
+                      <div className="w-full h-72 bg-muted/30 flex items-center justify-center overflow-hidden">
+                        {s.cover ? (
+                          <img src={s.cover} alt={s.title} className="w-full h-full object-cover" />
+                        ) : s.kind === "image" ? (
+                          <img src={s.url} alt={s.title} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <FileText className="h-5 w-5" /> PDF 示例
+                          </div>
+                        )}
+                      </div>
+                      <div className="px-3 py-2 border-t">
+                        <div className="text-sm font-medium">{s.title}</div>
+                        <div className="text-xs text-muted-foreground">{s.desc}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </CardContent>
           </Card>
         )}
 
-        {(preview || result || pages.length > 0) && (
+        {preview && (streaming || result || pages.length > 0) && (
           <Card className="min-h-[360px] h-[80vh] flex flex-col">
             <CardHeader className="flex items-center justify-between flex-row">
               <CardTitle>识别结果 · {promptLabel}</CardTitle>
