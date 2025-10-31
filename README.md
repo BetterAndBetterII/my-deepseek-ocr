@@ -1,6 +1,8 @@
 My OCR
 ======
 
+For Chinese documentation, see: [中文](./README_zh.md)
+
 An end-to-end OCR product with:
 - Backend: FastAPI + Async SQLAlchemy + JWT auth, streaming OCR via an OpenAI-compatible engine
 - Frontend: React + Vite + Tailwind, real-time streaming UI for Image/PDF OCR
@@ -108,12 +110,37 @@ Browser ──> Nginx (serves SPA + proxies /api) ──> FastAPI (app/main.py)
 **Docker Compose**
 - `docker compose up -d --build`
 - Services:
-  - `api`: FastAPI backend at `http://localhost:9000` (Prometheus `/metrics` exposed). DB persisted to volume `db-data` at `/app/_data`.
-  - `web`: Frontend at `http://localhost:3000`. Build args `VITE_API_BASE_URL`/`NEXT_PUBLIC_API_BASE_URL` target `http://api:9000`.
-  - `prometheus`: `http://localhost:9090`, scrapes `api:9000/metrics` every 5s (see `monitoring/prometheus.yml`).
-  - `grafana`: `http://localhost:3001` (default admin/admin; override via env `GRAFANA_ADMIN_USER`/`GRAFANA_ADMIN_PASSWORD`). Pre-provisioned Prometheus datasource.
-- Optional OCR engine:
-  - `docker-compose.yml` contains a commented `engine` service. If you run your OCR engine in compose, enable it and keep `LLM_BASE_URL=http://engine:8000/v1`.
+  - `api`: FastAPI backend at `http://localhost:9000` (backs container port `8000`; Prometheus `/metrics` exposed). DB persisted to volume `db-data` at `/app/_data`.
+  - `web`: Frontend at `http://localhost:3000`. Nginx proxies `/api` to `http://api:8000` at runtime.
+  - `prometheus`: `http://localhost:9090`, scrapes `api:8000/metrics` every 5s (see `monitoring/prometheus.yml`).
+  - `grafana`: `http://localhost:3001` (default admin/admin; override via env `GRAFANA_ADMIN_USER`/`GRAFANA_ADMIN_PASSWORD`). Pre-provisioned Prometheus datasource and dashboards.
+  - `engine`: vLLM server at `http://localhost:8000` (OpenAI-compatible). Backend points to `http://engine:8000/v1` inside the network.
+
+Local Docker (vLLM) quick run
+-----------------------------
+
+Run vLLM locally without compose (GPU 0,1; shared memory; mounts for cache/template):
+
+```
+docker run --rm --gpus '"device=0,1"' \
+  --ipc=host --shm-size=16g \
+  -p 8000:8000 \
+  -v ~/.cache/huggingface:/root/.cache/huggingface \
+  -v ~/vllm:/root/vllm \
+  vllm/vllm-openai:nightly \
+  --model deepseek-ai/DeepSeek-OCR \
+  --tensor-parallel-size 2 \
+  --distributed-executor-backend mp \
+  --logits-processors "vllm.model_executor.models.deepseek_ocr:NGramPerReqLogitsProcessor" \
+  --chat-template "/root/vllm/template_deepseek_ocr.jinja"
+```
+
+Notes:
+- Requires copying the chat template locally (place it under `~/vllm/template_deepseek_ocr.jinja`):
+  - Source: vllm/vllm/transformers_utils/chat_templates/template_deepseek_ocr.jinja (main branch)
+    https://github.com/vllm-project/vllm/blob/main/vllm/transformers_utils/chat_templates/template_deepseek_ocr.jinja
+- Reference discussion: “Usage: How to request DeepSeek-OCR with http request” (vLLM Issue #27463)
+  https://github.com/vllm-project/vllm/issues/27463
 
 **Migrations (Alembic)**
 - Autogenerate: `alembic revision --autogenerate -m "msg"`
